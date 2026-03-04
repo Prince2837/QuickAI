@@ -3,6 +3,8 @@ import fs from "fs";
 import pool from "../configs/db.js";
 import { GoogleGenAI } from "@google/genai";
 import { clerkClient } from "@clerk/express";
+import cloudinary from "../configs/cloudinary.js";
+import axios from 'axios'
 
 const require = createRequire(import.meta.url);
 
@@ -181,10 +183,9 @@ export const generateImage = async (req, res) => {
       });
     }
 
-    const formData = new FormData();
-    formData.append("prompt", prompt);
-
-    const { data } = await axios.post("https://clipdrop-api.co/text-to-image/v1", { prompt },
+    const { data } = await axios.post(
+      "https://clipdrop-api.co/text-to-image/v1",
+      { prompt },
       {
         headers: {
           "x-api-key": process.env.CLIPDROP_API_KEY,
@@ -194,7 +195,9 @@ export const generateImage = async (req, res) => {
       }
     );
 
-    const base64Image = `data:image/png;base64,${Buffer.from(data).toString("base64")}`;
+    const base64Image = `data:image/png;base64,${Buffer.from(data).toString(
+      "base64"
+    )}`;
 
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "quickai",
@@ -202,11 +205,9 @@ export const generateImage = async (req, res) => {
 
     const secure_url = uploadResult.secure_url;
 
-
-    const result = await pool.query(
+    await pool.query(
       `INSERT INTO creations (user_id, prompt, content, type, publish)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
+       VALUES ($1, $2, $3, $4, $5)`,
       [userId, prompt, secure_url, "image", publish ?? false]
     );
 
@@ -217,7 +218,7 @@ export const generateImage = async (req, res) => {
 
   } catch (error) {
     console.error("Generate Image Error:", error);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       message: "AI image generation failed",
     });
